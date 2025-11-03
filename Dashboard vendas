@@ -1,0 +1,131 @@
+# Dashboard de Performance de Vendas (Superstore)
+
+# 1. Carregamento e Preparação de Dados
+# Carregue o Dataset: 
+import pandas as pd 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df_superStore = pd.read_csv('../archive/Sample - Superstore.csv', encoding= 'latin1')
+
+df_superStore.head()
+
+# 2 Conversão de Data: Converta a coluna Order Date para o formato datetime do Pandas usando pd.to_datetime().
+
+df_superStore['Order Date'] = pd.to_datetime(df_superStore['Order Date'])
+
+# 3 Criação de Features Temporais: Crie novas colunas úteis para gráficos de tendência e filtros:
+# Year (Ano do pedido).
+#  Month_Year (Mês e Ano, no formato YYYY-MM para gráficos de tendência)
+
+df_superStore['Ano_pedido'] = df_superStore['Order Date'].dt.year
+
+# pega-se um periodo df['AnoMes'] = df['Data'].dt.to_period('M').astype(str)
+df_superStore['Mes_Ano_Pedido'] = df_superStore['Order Date'].dt.to_period('M').astype(str)
+
+df_superStore.head()
+# 2. Análise Exploratória (EDA) para Storytelling
+
+
+# KPI 1: Tendência de Lucro ao Longo do Tempo:
+#Agrupe por Month_Year e calcule a soma de Profit.
+
+agrupar = df_superStore.groupby(['Mes_Ano_Pedido'])['Profit'].sum().reset_index()
+
+#  Plote uma linha temporal (line plot) para ver a evolução do lucro.
+
+plt.figure(figsize=(12,6))
+sns.lineplot(data=agrupar, x='Mes_Ano_Pedido', y='Profit', marker='o')
+plt.xticks(rotation=45)  # rotaciona os meses para melhor visualização
+plt.show()
+
+
+# KPI 2: Vendas e Lucro por Categoria:
+# Agrupe por Category e calcule a soma de Sales e Profit. 
+
+agrupar_categoria = df_superStore.groupby(['Category'])[['Sales', 'Profit']].sum().reset_index()
+
+# Plote um gráfico de barras (bar plot) para ver qual categoria gera mais receita e qual gera mais lucro.
+
+# Transformar em formato "long" para facilitar o Seaborn
+# melt transforma o DataFrame de formato largo para longo, permitindo que Seaborn crie barras lado a lado com hue='Tipo'
+agrupar_long = agrupar_categoria.melt(id_vars='Category', 
+                                      value_vars=['Sales', 'Profit'], 
+                                      var_name='Tipo', 
+                                      value_name='Valor')
+
+# Plot
+plt.figure(figsize=(10,6))
+sns.barplot(data=agrupar_long, x='Category', y='Valor', hue='Tipo')
+plt.show()
+
+#Problema 1: Lucro Negativo por Sub-Categoria:
+
+#Agrupe por Sub-Category e filtre aquelas onde o Profit total é negativo.
+
+Agg_Sub_Category = df_superStore.groupby(['Sub-Category'])['Profit'].sum().reset_index()
+
+Filtragem = Agg_Sub_Category[Agg_Sub_Category['Profit'] < 0]
+
+
+# um gráfico de barras mostrando as sub-categorias com a maior perda (Lucro mais negativo).
+
+plt.figure(figsize=(12,6))
+sns.barplot(data = Filtragem, x='Sub-Category', y='Profit', palette='Reds_r')
+plt.xticks(rotation=45)
+plt.xlabel('Subcategoria')
+plt.ylabel('Lucro Total')
+plt.tight_layout()
+plt.show()
+
+
+# Problema 2: Lucro por Região/Segmento:
+
+# Crie uma tabela dinâmica (pivot table) mostrando o Profit agregado por Region (linhas) e Segment (colunas).
+pivot_profit = pd.pivot_table(
+    df_superStore,
+    values='Profit',        # Coluna a ser agregada
+    index='Region',         # Linhas
+    columns='Segment',      # Colunas
+    aggfunc='sum',          # Tipo de agregação
+    margins=True,           # Adiciona totais (opcional)
+    margins_name='Total'    # Nome da linha/coluna de totais
+)
+
+print(pivot_profit)
+
+
+# Use um heatmap (Mapa de calor) para visualizar rapidamente as combinações Região/Segmento que são mais lucrativas ou problemáticas.
+
+plt.figure(figsize=(12,6))
+sns.heatmap( pivot_profit,
+            annot=True,        # mostra os valores nas células
+    fmt=".2f",         # formatação com 2 casas decimais
+    cmap='RdYlGn',     # escala de cores (vermelho → verde)
+    linewidths=0.5  )
+plt.title('Lucro Total por Região e Segmento', fontsize=14)
+plt.xlabel('Segmento')
+plt.ylabel('Região')
+plt.tight_layout()
+plt.show()
+
+
+
+# Converte os valores para percentuais em relação ao total geral
+pivot_percent = (pivot_profit / pivot_profit.values.sum()) * 100
+
+# Gera o heatmap com percentuais
+plt.figure(figsize=(8,6))
+sns.heatmap(
+    pivot_percent,
+    annot=True,         # mostra os valores
+    fmt=".2f",          # duas casas decimais
+    cmap='YlGnBu',      # azul-esverdeado (mais suave)
+    linewidths=0.5
+)
+
+plt.title('Percentual do Lucro Total por Região e Segmento', fontsize=14)
+plt.xlabel('Segmento')
+plt.ylabel('Região')
+plt.tight_layout()
+plt.show()
